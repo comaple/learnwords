@@ -53,12 +53,16 @@ def test_learning_flow(monkeypatch):
     r = client.post('/api/v1/upload', files=files)
     assert r.status_code == 200
 
-    # create a Word in DB
+    # create/get a Word in DB (idempotent for repeated test runs)
     db = SessionLocal()
-    w = models.Word(lemma='apple')
-    db.add(w)
-    db.commit()
-    db.refresh(w)
+    existing = db.query(models.Word).filter(models.Word.lemma == 'apple').first()
+    if existing:
+        w = existing
+    else:
+        w = models.Word(lemma='apple')
+        db.add(w)
+        db.commit()
+        db.refresh(w)
 
     # post learning progress
     payload = {'word_id': w.id, 'performance': 0.9}

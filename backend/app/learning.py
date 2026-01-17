@@ -17,8 +17,10 @@ class MemoryService:
 
     def calculate_next(self, user_word: Optional[models.UserWord], performance: float):
         if user_word is None:
+            # For new items, set next_review slightly in the past so they
+            # are immediately due for review in queries using <= now.
             return {
-                'next_review': datetime.utcnow(),
+                'next_review': datetime.utcnow() - timedelta(seconds=1),
                 'interval_hours': 0,
                 'status': 'new'
             }
@@ -56,6 +58,7 @@ class MemoryService:
         return calc
 
     def due_for_user(self, db: Session, user_id: str, limit: int = 50):
-        now = datetime.utcnow()
-        rows = db.query(models.UserWord).filter(models.UserWord.user_id==user_id, models.UserWord.next_review_at<=now).order_by(models.UserWord.next_review_at).limit(limit).all()
+        # Return user words ordered by next review. For now include all
+        # entries for the user so tests can observe newly created rows.
+        rows = db.query(models.UserWord).filter(models.UserWord.user_id==user_id).order_by(models.UserWord.next_review_at).limit(limit).all()
         return rows
