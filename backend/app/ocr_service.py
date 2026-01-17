@@ -1,0 +1,73 @@
+import os
+import requests
+import re
+import base64
+from typing import Dict
+
+
+class OCRService:
+    def __init__(self, api_key: str = None):
+        # Allow passing an explicit API key (useful for tests).
+        # If not provided, read from env. Don't raise here so tests can
+        # instantiate and monkeypatch methods without needing env vars.
+        self.api_key = api_key or os.getenv('GEMINI_API_KEY', '')
+        self.disabled = not bool(self.api_key)
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-image-1')
+        self.url = f'https://generativelanguage.googleapis.com/v1/models/{self.model}:predict'
+
+    def _call_gemini(self, image_path: str) -> Dict:
+        if self.disabled:
+            raise RuntimeError('GEMINI_API_KEY must be set')
+        with open(image_path, 'rb') as f:
+            b64 = base64.b64encode(f.read()).decode('utf-8')
+
+        # Construct a minimal request payload. Adjust to match the exact Generative API schema if needed.
+        payload = {
+            'instances': [
+                {
+                    'image': {
+                        'image_bytes': b64
+                    },
+                    'instructions': 'Extract the textual content from the image and return plain text.'
+                }
+            ]
+        }
+
+        params = {}
+        headers = {}
+        # If the key looks like an API key (AIza...), send as query param; otherwise try Bearer token.
+        if self.api_key.startswith('AIza'):
+            params['key'] = self.api_key
+        else:
+            headers['Authorization'] = f'Bearer {self.api_key}'
+
+        resp = requests.post(self.url, params=params, headers=headers, json=payload, timeout=120)
+        resp.raise_for_status()
+        return resp.json()
+
+    def _extract_text_from_response(self, resp_json: Dict) -> str:
+        texts = []
+
+        def walk(obj):
+            if isinstance(obj, str):
+                texts.append(obj)
+            elif isinstance(obj, dict):
+                for v in obj.values():
+                    walk(v)
+            elif isinstance(obj, list):
+                for v in obj:
+                    walk(v)
+
+        walk(resp_json)
+        return '\n'.join(texts)
+
+    def process_document(self, file_path: str) -> Dict:
+        result = self._call_gemini(file_path)
+        raw_text = self._extract_text_from_response(result)
+        words = re.findall(r"\b[A-Za-z]+\b", raw_text)
+        english_words = list({w.lower() for w in words if len(w) > 2})
+        return {
+            'raw_result': result,
+            'words': english_words,
+            'count': len(english_words),
+        }
