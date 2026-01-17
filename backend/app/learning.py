@@ -58,7 +58,14 @@ class MemoryService:
         return calc
 
     def due_for_user(self, db: Session, user_id: str, limit: int = 50):
-        # Return all user_words for the user ordered by next_review_at. This
-        # simplifies behavior for tests and early development.
-        rows = db.query(models.UserWord).filter(models.UserWord.user_id==user_id).order_by(models.UserWord.next_review_at).limit(limit).all()
+        # Return only user_words that are due for review (next_review_at <= now),
+        # ordered by next_review_at ascending.
+        now = datetime.utcnow()
+        rows = (
+            db.query(models.UserWord)
+            .filter(models.UserWord.user_id == user_id, models.UserWord.next_review_at <= now)
+            .order_by(models.UserWord.next_review_at)
+            .limit(limit)
+            .all()
+        )
         return rows
