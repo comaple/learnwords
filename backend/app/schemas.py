@@ -24,3 +24,10 @@ class UploadOut(BaseModel):
     upload_id: str
     words: List[str]
     count: int
+class ProgressIn(BaseModel):
+    word_id: str
+    performance: float
+
+class ProgressOut(BaseModel):
+    next_review: datetime
+    interval_hours: float

@@ -6,7 +6,7 @@ import os
 
 from .db import engine, Base, get_db, SessionLocal
 from . import models
-from .schemas import UserCreate, UserOut, Token, UploadOut
+from .schemas import UserCreate, UserOut, Token, UploadOut, ProgressIn, ProgressOut
 from .auth import hash_password, verify_password, create_access_token
 from .auth import get_current_user
 from .learning import MemoryService
@@ -123,11 +123,11 @@ def get_learning_plan(current_user: models.User = Depends(get_current_user), db:
     return {'plans': plans}
 
 
-@app.post('/api/v1/learning/progress')
-def post_learning_progress(payload: dict, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+@app.post('/api/v1/learning/progress', response_model=ProgressOut)
+def post_learning_progress(payload: ProgressIn, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     user_id = current_user.id
-    word_id = payload.get('word_id')
-    performance = float(payload.get('performance', 0.0))
+    word_id = payload.word_id
+    performance = payload.performance
     if not word_id:
         raise HTTPException(status_code=400, detail='word_id required')
     ms = MemoryService()
